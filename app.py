@@ -278,7 +278,7 @@ HTML_TEMPLATE = """
                 .catch(function(e) { console.log('Index fetch error:', e); });
         }
         fetchIndices();
-        setInterval(fetchIndices, 60000); // Refresh every minute
+        setInterval(fetchIndices, 5000); // Refresh every 5 seconds
         
         document.getElementById('ticker').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') analyzeStock();
