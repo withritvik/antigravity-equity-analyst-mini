@@ -40,13 +40,6 @@ docker-compose up -d --build
 docker-compose down
 ```
 
-## Deploy to Render
-
-1. Push to GitHub
-2. Create new Web Service on Render
-3. Select "Docker" as environment
-4. Set instance to Free tier (512MB RAM)
-5. Deploy!
 
 ## Tech Stack
 
