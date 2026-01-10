@@ -21,26 +21,28 @@ class DebateSimulator:
         # --- Round 1: Opening Statements ---
         
         # Fundamental Opening
+        fund_reasoning = self.fund.get('reasoning', 'Fundamentals are strong.')
         if self.fund_score >= 60:
-            fund_msg = f"This company is a powerhouse. {self.fund.get('reasoning', 'Fundamentals are strong.')}"
+            fund_msg = f"This company is a powerhouse. {fund_reasoning}"
             fund_tone = "confident"
         elif self.fund_score <= 40:
-            fund_msg = f"I cannot recommend this. {self.fund.get('reasoning', 'Fundamentals are weak.')}"
+            fund_msg = f"I cannot recommend this. {fund_reasoning}"
             fund_tone = "skeptical"
         else:
-            fund_msg = f"It's a mixed bag. {self.fund.get('reasoning', 'Metrics are average.')}"
+            fund_msg = f"It's a mixed bag. {fund_reasoning}"
             fund_tone = "neutral"
         self.transcript.append(self.generate_dialogue("Fundamental Agent", fund_tone, fund_msg))
 
         # Technical Opening
+        tech_reasoning = self.tech.get('reasoning', 'Technical trend is bullish.')
         if self.tech_score >= 60:
-            tech_msg = f"The charts agree. {self.tech.get('reasoning', 'Technical trend is bullish.')}"
+            tech_msg = f"The charts agree. {tech_reasoning}"
             tech_tone = "excited"
         elif self.tech_score <= 40:
-            tech_msg = f"Price action is dangerous. {self.tech.get('reasoning', 'Trend is bearish.')}"
+            tech_msg = f"Price action is dangerous. {tech_reasoning}"
             tech_tone = "cautious"
         else:
-            tech_msg = f"Price is chopping sideways. {self.tech.get('reasoning', 'No clear trend.')}"
+            tech_msg = f"Price is chopping sideways. {tech_reasoning}"
             tech_tone = "bored"
         self.transcript.append(self.generate_dialogue("Technical Agent", tech_tone, tech_msg))
 

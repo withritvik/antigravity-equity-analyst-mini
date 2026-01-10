@@ -5,8 +5,14 @@ Uses separate agent files called via subprocess, same architecture as main Analy
 """
 
 import sys
+import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'agents'))
 from orchestration_agent import DebateSimulator
+
+from flask import Flask, render_template_string, request, jsonify
+import subprocess
+import json
+import yfinance as yf
 
 app = Flask(__name__)
 
