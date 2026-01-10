@@ -1,5 +1,5 @@
 # Mini Analyst 📉
-
+https://antigravity-equity-analyst-mini.onrender.com/
 A **minimal** stock analysis tool designed for resource-constrained environments.
 
 - **Python-only** (no Node.js)
