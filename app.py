@@ -28,7 +28,7 @@ def run_agent(script_name, symbol):
     
     try:
         result = subprocess.run(
-            ['python3', script_path, symbol],
+            [sys.executable, script_path, symbol],
             capture_output=True,
             text=True,
             timeout=60
