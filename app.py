@@ -336,8 +336,11 @@ HTML_TEMPLATE = """
         <!-- Left Sidebar: NIFTY 50 -->
         <div class="sidebar" style="border-right: 1px solid #333; border-left: none;">
             <h4>NIFTY 50</h4>
-            {% for ticker in nifty %}
-            <div class="stock-item" onclick="analyzeStock('{{ ticker }}')">{{ ticker }}</div>
+            {% for ticker, name in nifty %}
+            <div class="stock-item" onclick="analyzeStock('{{ ticker }}')">
+                <span style="font-weight:bold; color:#e0e0e0;">{{ ticker }}</span><br>
+                <span style="font-size:0.8em; color:#888;">{{ name }}</span>
+            </div>
             {% endfor %}
         </div>
 
@@ -369,8 +372,11 @@ HTML_TEMPLATE = """
         <!-- Right Sidebar: S&P 500 -->
         <div class="sidebar" style="border-left: 1px solid #333; border-right: none;">
             <h4>S&P 500</h4>
-            {% for ticker in sp500 %}
-            <div class="stock-item" onclick="analyzeStock('{{ ticker }}')">{{ ticker }}</div>
+            {% for ticker, name in sp500 %}
+            <div class="stock-item" onclick="analyzeStock('{{ ticker }}')">
+                <span style="font-weight:bold; color:#e0e0e0;">{{ ticker }}</span><br>
+                <span style="font-size:0.8em; color:#888;">{{ name }}</span>
+            </div>
             {% endfor %}
         </div>
     </div>
@@ -450,18 +456,6 @@ HTML_TEMPLATE = """
                                 html += '<tr><td>' + k + '</td><td>' + techMetrics[k] + '</td></tr>';
                             }
                             html += '</table>';
-                            
-                            // Technical Scoring Breakdown
-                            if (data.technical.scoring_log) {
-                                html += '<h5 style="margin-top:10px; color:#888;">Scoring Logic</h5>';
-                                html += '<table style="font-size:0.8em; color:#aaa;">';
-                                data.technical.scoring_log.forEach(function(item) {
-                                    var color = item.points > 0 ? '#0f0' : (item.points < 0 ? '#f00' : '#888');
-                                    var sign = item.points > 0 ? '+' : '';
-                                    html += '<tr><td>' + item.desc + '</td><td style="color:' + color + ';">' + sign + item.points + '</td></tr>';
-                                });
-                                html += '</table>';
-                            }
                         }
                         html += '</div>';
                         
@@ -475,22 +469,44 @@ HTML_TEMPLATE = """
                                 html += '<tr><td>' + k + '</td><td>' + fundMetrics[k] + '</td></tr>';
                             }
                             html += '</table>';
-                            
-                            // Fundamental Scoring Breakdown
-                            if (data.fundamental.scoring_log) {
-                                html += '<h5 style="margin-top:10px; color:#888;">Scoring Logic</h5>';
-                                html += '<table style="font-size:0.8em; color:#aaa;">';
-                                data.fundamental.scoring_log.forEach(function(item) {
-                                    var color = item.points > 0 ? '#0f0' : (item.points < 0 ? '#f00' : '#888');
-                                    var sign = item.points > 0 ? '+' : '';
-                                    html += '<tr><td>' + item.desc + '</td><td style="color:' + color + ';">' + sign + item.points + '</td></tr>';
-                                });
-                                html += '</table>';
-                            }
                         }
                         html += '</div>';
                         
                         html += '</div>'; // End data tables div
+                        
+                        // Scoring Breakdown Section
+                        html += '<h4 style="margin-top:30px; border-top:1px solid #333; padding-top:20px;">Scoring Breakdown</h4>';
+                        html += '<div style="display:flex; gap:20px; flex-wrap:wrap;">';
+                        
+                        // Technical Scoring
+                        html += '<div style="flex:1; min-width:250px;">';
+                        html += '<h5 style="color:#888;">Technical Score (' + (data.technical.score || 0) + ')</h5>';
+                        if (data.technical.scoring_log) {
+                            html += '<table style="font-size:0.85em; color:#ccc;">';
+                            data.technical.scoring_log.forEach(function(item) {
+                                var color = item.points > 0 ? '#0f0' : (item.points < 0 ? '#f00' : '#888');
+                                var sign = item.points > 0 ? '+' : '';
+                                html += '<tr><td>' + item.desc + '</td><td style="color:' + color + '; text-align:right;">' + sign + item.points + '</td></tr>';
+                            });
+                            html += '</table>';
+                        }
+                        html += '</div>';
+
+                        // Fundamental Scoring
+                        html += '<div style="flex:1; min-width:250px;">';
+                        html += '<h5 style="color:#888;">Fundamental Score (' + (data.fundamental.score || 0) + ')</h5>';
+                        if (data.fundamental.scoring_log) {
+                            html += '<table style="font-size:0.85em; color:#ccc;">';
+                            data.fundamental.scoring_log.forEach(function(item) {
+                                var color = item.points > 0 ? '#0f0' : (item.points < 0 ? '#f00' : '#888');
+                                var sign = item.points > 0 ? '+' : '';
+                                html += '<tr><td>' + item.desc + '</td><td style="color:' + color + '; text-align:right;">' + sign + item.points + '</td></tr>';
+                            });
+                            html += '</table>';
+                        }
+                        html += '</div>';
+                        
+                        html += '</div>'; // End scoring div
                         
                         document.getElementById('result').innerHTML = html;
                     } else {
