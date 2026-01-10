@@ -7,7 +7,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy app and agents
+# Copy app and agents
 COPY agents ./agents
+COPY data ./data
 COPY app.py .
 
 # Expose port
