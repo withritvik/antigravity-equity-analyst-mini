@@ -8,6 +8,7 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'agents'))
 from orchestration_agent import DebateSimulator
+from data.tickers import NIFTY_50, SP_500
 
 from flask import Flask, render_template_string, request, jsonify
 import subprocess
@@ -215,7 +216,61 @@ HTML_TEMPLATE = """
             text-align: center;
             width: 100%;
         }
-        body { padding-top: 60px; }
+        /* Layout */
+        body { 
+            padding-top: 60px; 
+            margin: 0;
+            overflow: hidden; /* Main scroll handled by containers */
+            height: 100vh;
+        }
+        
+        .main-layout {
+            display: flex;
+            height: calc(100vh - 60px); 
+            overflow: hidden;
+        }
+        
+        .sidebar {
+            width: 250px;
+            background: #0a0a0a;
+            border-right: 1px solid #333;
+            border-left: 1px solid #333;
+            overflow-y: auto;
+            padding: 10px 0;
+            flex-shrink: 0;
+        }
+        
+        .sidebar h4 {
+            text-align: center;
+            color: #888;
+            margin: 10px 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.9em;
+        }
+
+        .stock-item {
+            padding: 8px 15px;
+            color: #ccc;
+            cursor: pointer;
+            border-bottom: 1px solid #222;
+            font-family: monospace;
+            font-size: 0.9em;
+            transition: background 0.2s;
+        }
+        .stock-item:hover {
+            background: #222;
+            color: #fff;
+        }
+        
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
         
         /* Debate Styles */
         .debate-container {
@@ -277,26 +332,46 @@ HTML_TEMPLATE = """
         </div>
     </div>
     
-    <div class="container">
-        <h1>MINI ANALYST</h1>
-        <p class="subtitle">Minimal Stock Analysis</p>
-        
-        <div class="search-box">
-            <input type="text" id="ticker" placeholder="Enter ticker symbol">
+    <div class="main-layout">
+        <!-- Left Sidebar: NIFTY 50 -->
+        <div class="sidebar" style="border-right: 1px solid #333; border-left: none;">
+            <h4>NIFTY 50</h4>
+            {% for ticker in nifty %}
+            <div class="stock-item" onclick="analyzeStock('{{ ticker }}')">{{ ticker }}</div>
+            {% endfor %}
         </div>
-        
-        <button onclick="analyzeStock()">ANALYZE</button>
-        
-        <p class="hint">
-            Enter ticker symbol (e.g., AAPL, MSFT)<br>
-            For NSE stocks, add .NS suffix (e.g., RELIANCE.NS, TCS.NS)
-        </p>
-        
-        <div id="result" class="result" style="display:none;"></div>
 
-        <div class="footer">
-            <p>PM - Ritvik Pandey</p>
-            <p>Engineer - Google AntiGravity</p>
+        <!-- Main Content -->
+        <div class="content-area">
+            <div class="container" style="margin-top:0;">
+                <h1>MINI ANALYST</h1>
+                <p class="subtitle">Minimal Stock Analysis</p>
+                
+                <div class="search-box">
+                    <input type="text" id="ticker" placeholder="Enter ticker symbol">
+                </div>
+                
+                <button onclick="analyzeStock()">ANALYZE</button>
+                
+                <p class="hint">
+                    Enter ticker symbol (e.g., AAPL, MSFT)<br>
+                    For NSE stocks, add .NS suffix (e.g., RELIANCE.NS, TCS.NS)
+                </p>
+                
+                <div id="result" class="result" style="display:none;"></div>
+            </div>
+            
+            <div class="footer">
+                <p>PM - Ritvik Pandey | Engineer - Google AntiGravity</p>
+            </div>
+        </div>
+
+        <!-- Right Sidebar: S&P 500 -->
+        <div class="sidebar" style="border-left: 1px solid #333; border-right: none;">
+            <h4>S&P 500</h4>
+            {% for ticker in sp500 %}
+            <div class="stock-item" onclick="analyzeStock('{{ ticker }}')">{{ ticker }}</div>
+            {% endfor %}
         </div>
     </div>
     
@@ -328,8 +403,9 @@ HTML_TEMPLATE = """
             if (e.key === 'Enter') analyzeStock();
         });
         
-        function analyzeStock() {
-            var ticker = document.getElementById('ticker').value.trim().toUpperCase();
+        function analyzeStock(symbol) {
+            var ticker = symbol ? symbol : document.getElementById('ticker').value.trim().toUpperCase();
+            if (symbol) document.getElementById('ticker').value = symbol; // Update input box
             if (!ticker) { alert('Please enter a ticker symbol'); return; }
             
             document.getElementById('result').style.display = 'block';
@@ -434,7 +510,7 @@ HTML_TEMPLATE = """
 
 @app.route('/')
 def home():
-    return render_template_string(HTML_TEMPLATE)
+    return render_template_string(HTML_TEMPLATE, nifty=NIFTY_50, sp500=SP_500)
 
 @app.route('/analyze')
 def analyze_route():
