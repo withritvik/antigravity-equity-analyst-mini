@@ -331,7 +331,7 @@ HTML_TEMPLATE = """
             <span id="sensex-change" class="index-change">--</span>
         </div>
         <div class="index-item">
-            <span class="index-name">DOJ JONES</span>
+            <span class="index-name">DOW JONES</span>
             <span id="dow-value" class="index-value">--</span>
             <span id="dow-change" class="index-change">--</span>
         </div>
@@ -436,8 +436,14 @@ HTML_TEMPLATE = """
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.success) {
-                        var html = '<h3 style="text-align:center;">' + data.company + '</h3>';
-                        html += '<p style="text-align:center;color:#888;">' + data.symbol + '</p>';
+                        var html = '<h3 style="text-align:center; margin-bottom:5px;">' + data.company + '</h3>';
+                        html += '<p style="text-align:center;color:#888; margin-top:0;">' + data.symbol + '</p>';
+                        
+                        // Price Display
+                        var price = data.technical.metrics.current_price;
+                        var currency = data.symbol.includes('.NS') ? '₹' : '$';
+                        html += '<h2 style="text-align:center; color:#fff; margin: 10px 0;">' + currency + price + '</h2>';
+                        
                         html += '<p class="signal ' + data.signal.toLowerCase() + '">' + data.signal + ' (' + data.score + '/100)</p>';
                         
                         // Debate Transcript
