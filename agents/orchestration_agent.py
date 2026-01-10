@@ -10,89 +10,96 @@ class DebateSimulator:
         self.tech_score = self.tech.get('score', 50)
         self.transcript = []
 
-    def generate_dialogue(self, speaker, tone, message):
+    def generate_dialogue(self, speaker, message):
         return {
             "speaker": speaker,
-            "tone": tone,
             "message": message
         }
 
     def run_debate(self):
+        # Determine signals early
+        fund_signal = "HOLD"
+        if self.fund_score >= 60: fund_signal = "BUY"
+        elif self.fund_score <= 40: fund_signal = "SELL"
+        
+        tech_signal = "HOLD"
+        if self.tech_score >= 60: tech_signal = "BUY"
+        elif self.tech_score <= 40: tech_signal = "SELL"
+
+        # Check for agreement
+        agents_agree = (fund_signal == tech_signal)
+
         # --- Round 1: Opening Statements ---
         
         # Fundamental Opening
         fund_reasoning = self.fund.get('reasoning', 'Fundamentals are strong.')
         if self.fund_score >= 60:
             fund_msg = f"This company is a powerhouse. {fund_reasoning}"
-            fund_tone = "confident"
         elif self.fund_score <= 40:
             fund_msg = f"I cannot recommend this. {fund_reasoning}"
-            fund_tone = "skeptical"
         else:
             fund_msg = f"It's a mixed bag. {fund_reasoning}"
-            fund_tone = "neutral"
-        self.transcript.append(self.generate_dialogue("Fundamental Agent", fund_tone, fund_msg))
+        self.transcript.append(self.generate_dialogue("Fundamental Agent", fund_msg))
 
         # Technical Opening
         tech_reasoning = self.tech.get('reasoning', 'Technical trend is bullish.')
         if self.tech_score >= 60:
             tech_msg = f"The charts agree. {tech_reasoning}"
-            tech_tone = "excited"
         elif self.tech_score <= 40:
             tech_msg = f"Price action is dangerous. {tech_reasoning}"
-            tech_tone = "cautious"
         else:
             tech_msg = f"Price is chopping sideways. {tech_reasoning}"
-            tech_tone = "bored"
-        self.transcript.append(self.generate_dialogue("Technical Agent", tech_tone, tech_msg))
+        self.transcript.append(self.generate_dialogue("Technical Agent", tech_msg))
 
-        # --- Round 2: The Attack (Cross-Exam) ---
-        
-        # Fund attacks Tech
-        fund_metrics = self.fund.get('metrics', {})
-        tech_metrics = self.tech.get('metrics', {})
-        
-        if self.tech_score > self.fund_score:
-            self.transcript.append(self.generate_dialogue("Fundamental Agent", "aggressive", 
-                "You're chasing lines on a chart! Look at the valuation. Ideally we want value, not just momentum."))
-        elif 'RSI' in tech_metrics and float(str(tech_metrics['RSI']).replace('%','')) > 70:
-             self.transcript.append(self.generate_dialogue("Fundamental Agent", "warning", 
-                "RSI is overbought. You're buying the top!"))
-        else:
-             self.transcript.append(self.generate_dialogue("Fundamental Agent", "critical", 
-                "Technical patterns can fail. Show me the cash flow backing this move."))
-
-        # Tech attacks Fund
-        if self.fund_score > self.tech_score:
-            self.transcript.append(self.generate_dialogue("Technical Agent", "defensive", 
-                "Valuation takes years to play out. The trend is NOW. Don't fight the tape!"))
-        elif 'P/E' in fund_metrics and float(str(fund_metrics['P/E'])) > 50:
-             self.transcript.append(self.generate_dialogue("Technical Agent", "mocking", 
-                "With that P/E? Good luck waiting for earnings to catch up. The market votes with price."))
-        else:
-             self.transcript.append(self.generate_dialogue("Technical Agent", "dismissive", 
-                "Fundamentals are lagging indicators. By the time they look good, the move is over."))
-
-        # --- Round 3: The Defense ---
-        
-        self.transcript.append(self.generate_dialogue("Fundamental Agent", "calm", 
-            f"Quality wins in the end. My score of {self.fund_score} reflects business reality."))
-        
-        self.transcript.append(self.generate_dialogue("Technical Agent", "firm", 
-            f"Price is reality. My score of {self.tech_score} reflects supply and demand."))
-
-        # --- Round 4: Risk Assessment (Consensus on Downside) ---
-        
-        self.transcript.append(self.generate_dialogue("Moderator", "neutral", 
-            "Agents, what is the biggest risk here?"))
+        # --- Debate Rounds (Only if agents disagree) ---
+        if not agents_agree:
+            # --- Round 2: The Attack (Cross-Exam) ---
             
-        risk_msg = "Market volatility"
-        if self.fund_score < 40: risk_msg = "Bankruptcy or earnings miss"
-        elif self.tech_score < 40: risk_msg = "Trend breakdown"
-        elif self.fund_score > 80 and self.tech_score > 80: risk_msg = "Overvaluation pullbacks"
-        
-        self.transcript.append(self.generate_dialogue("Joint Statement", "serious", 
-            f"Agreed. The main risk is {risk_msg}."))
+            # Fund attacks Tech
+            fund_metrics = self.fund.get('metrics', {})
+            tech_metrics = self.tech.get('metrics', {})
+            
+            if self.tech_score > self.fund_score:
+                self.transcript.append(self.generate_dialogue("Fundamental Agent", 
+                    "You're chasing lines on a chart! Look at the valuation. Ideally we want value, not just momentum."))
+            elif 'RSI' in tech_metrics and float(str(tech_metrics['RSI']).replace('%','')) > 70:
+                 self.transcript.append(self.generate_dialogue("Fundamental Agent", 
+                    "RSI is overbought. You're buying the top!"))
+            else:
+                 self.transcript.append(self.generate_dialogue("Fundamental Agent", 
+                    "Technical patterns can fail. Show me the cash flow backing this move."))
+
+            # Tech attacks Fund
+            if self.fund_score > self.tech_score:
+                self.transcript.append(self.generate_dialogue("Technical Agent", 
+                    "Valuation takes years to play out. The trend is NOW. Don't fight the tape!"))
+            elif 'P/E' in fund_metrics and float(str(fund_metrics['P/E'])) > 50:
+                 self.transcript.append(self.generate_dialogue("Technical Agent", 
+                    "With that P/E? Good luck waiting for earnings to catch up. The market votes with price."))
+            else:
+                 self.transcript.append(self.generate_dialogue("Technical Agent", 
+                    "Fundamentals are lagging indicators. By the time they look good, the move is over."))
+
+            # --- Round 3: The Defense ---
+            
+            self.transcript.append(self.generate_dialogue("Fundamental Agent", 
+                f"Quality wins in the end. My score of {self.fund_score} reflects business reality."))
+            
+            self.transcript.append(self.generate_dialogue("Technical Agent", 
+                f"Price is reality. My score of {self.tech_score} reflects supply and demand."))
+
+            # --- Round 4: Risk Assessment ---
+            
+            self.transcript.append(self.generate_dialogue("Moderator", 
+                "Agents, what is the biggest risk here?"))
+                
+            risk_msg = "Market volatility"
+            if self.fund_score < 40: risk_msg = "Bankruptcy or earnings miss"
+            elif self.tech_score < 40: risk_msg = "Trend breakdown"
+            elif self.fund_score > 80 and self.tech_score > 80: risk_msg = "Overvaluation pullbacks"
+            
+            self.transcript.append(self.generate_dialogue("Joint Statement", 
+                f"Agreed. The main risk is {risk_msg}."))
 
         # --- Round 5: Closing & Vote ---
         
@@ -101,17 +108,13 @@ class DebateSimulator:
         if final_score >= 65: decision = "BUY"
         elif final_score <= 35: decision = "SELL"
         
-        final_tone = "triumphant" if decision == "BUY" else "stern"
-        
         conclusion = ""
-        if decision == "BUY":
-            conclusion = f"We recommend a BUY. Final Weighted Score: {round(final_score, 1)}."
-        elif decision == "SELL":
-            conclusion = f"We recommend a SELL. Final Weighted Score: {round(final_score, 1)}."
+        if agents_agree:
+            conclusion = f"We are in agreement. {decision} signal confirmed by both agents. Final Weighted Score: {round(final_score, 1)}."
         else:
-            conclusion = f"We recommend holding for now. Score: {round(final_score, 1)}."
+            conclusion = f"After debate, we lean towards {decision}. Final Weighted Score: {round(final_score, 1)}."
 
-        self.transcript.append(self.generate_dialogue("Orchestrator", final_tone, conclusion))
+        self.transcript.append(self.generate_dialogue("Orchestrator", conclusion))
         
         return {
             "transcript": self.transcript,

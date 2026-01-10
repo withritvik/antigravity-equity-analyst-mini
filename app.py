@@ -260,12 +260,7 @@ HTML_TEMPLATE = """
         .dialogue-text {
             color: #e0e0e0;
         }
-        .tone-tag {
-            font-size: 0.7em;
-            color: #666;
-            margin-left: 10px;
-            font-style: italic;
-        }
+
     </style>
 </head>
 <body>
@@ -359,8 +354,7 @@ HTML_TEMPLATE = """
                             else speakerClass = 'speaker-orch';
                             
                             html += '<div class="dialogue-box ' + speakerClass + '">';
-                            html += '<span class="speaker-name">' + entry.speaker;
-                            html += '<span class="tone-tag">(' + entry.tone + ')</span></span>';
+                            html += '<span class="speaker-name">' + entry.speaker + '</span>';
                             html += '<p class="dialogue-text">' + entry.message + '</p>';
                             html += '</div>';
                         });
@@ -380,6 +374,18 @@ HTML_TEMPLATE = """
                                 html += '<tr><td>' + k + '</td><td>' + techMetrics[k] + '</td></tr>';
                             }
                             html += '</table>';
+                            
+                            // Technical Scoring Breakdown
+                            if (data.technical.scoring_log) {
+                                html += '<h5 style="margin-top:10px; color:#888;">Scoring Logic</h5>';
+                                html += '<table style="font-size:0.8em; color:#aaa;">';
+                                data.technical.scoring_log.forEach(function(item) {
+                                    var color = item.points > 0 ? '#0f0' : (item.points < 0 ? '#f00' : '#888');
+                                    var sign = item.points > 0 ? '+' : '';
+                                    html += '<tr><td>' + item.desc + '</td><td style="color:' + color + ';">' + sign + item.points + '</td></tr>';
+                                });
+                                html += '</table>';
+                            }
                         }
                         html += '</div>';
                         
@@ -393,6 +399,18 @@ HTML_TEMPLATE = """
                                 html += '<tr><td>' + k + '</td><td>' + fundMetrics[k] + '</td></tr>';
                             }
                             html += '</table>';
+                            
+                            // Fundamental Scoring Breakdown
+                            if (data.fundamental.scoring_log) {
+                                html += '<h5 style="margin-top:10px; color:#888;">Scoring Logic</h5>';
+                                html += '<table style="font-size:0.8em; color:#aaa;">';
+                                data.fundamental.scoring_log.forEach(function(item) {
+                                    var color = item.points > 0 ? '#0f0' : (item.points < 0 ? '#f00' : '#888');
+                                    var sign = item.points > 0 ? '+' : '';
+                                    html += '<tr><td>' + item.desc + '</td><td style="color:' + color + ';">' + sign + item.points + '</td></tr>';
+                                });
+                                html += '</table>';
+                            }
                         }
                         html += '</div>';
                         

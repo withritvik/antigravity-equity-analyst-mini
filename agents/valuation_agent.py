@@ -61,36 +61,47 @@ def analyze_stock(symbol):
         
         # --- Scoring Logic (Long-Term Investor) ---
         score = 50 # Start Neutral
+        scoring_log = []
+        scoring_log.append({"metric": "Starting Base", "points": 50, "desc": "Neutral starting position"})
+        
         reasoning_parts = []
         
         # Trend Analysis (Golden Cross / Price vs 200 SMA)
         if current_price > sma_200:
             score += 20
+            scoring_log.append({"metric": "Long-term Trend", "points": 20, "desc": "Price above 200 DMA"})
             reasoning_parts.append("Price is in a long-term uptrend (above 200 DMA)")
             if sma_50 > sma_200:
                 score += 5
+                scoring_log.append({"metric": "Trend Alignment", "points": 5, "desc": "50 DMA > 200 DMA (Bullish)"})
                 reasoning_parts.append("Bullish trend alignment (50 DMA > 200 DMA)")
         else:
             score -= 20
+            scoring_log.append({"metric": "Long-term Trend", "points": -20, "desc": "Price below 200 DMA"})
             reasoning_parts.append("Price is in a long-term downtrend (below 200 DMA)")
             
         # RSI Analysis (Weekly)
         if 40 <= rsi_weekly <= 70:
             score += 10
+            scoring_log.append({"metric": "Momentum (RSI)", "points": 10, "desc": f"Healthy Weekly RSI ({rsi_weekly:.1f})"})
             reasoning_parts.append("Weekly RSI ({:.1f}) is in a healthy range".format(rsi_weekly))
         elif rsi_weekly > 70:
             score -= 5
+            scoring_log.append({"metric": "Momentum (RSI)", "points": -5, "desc": f"Overbought Weekly RSI ({rsi_weekly:.1f})"})
             reasoning_parts.append("Weekly RSI ({:.1f}) indicates overbought conditions".format(rsi_weekly))
         elif rsi_weekly < 30:
             score += 5 # Contrarian buy for long term if trend is okay, or just oversold
+            scoring_log.append({"metric": "Momentum (RSI)", "points": 5, "desc": f"Oversold Weekly RSI ({rsi_weekly:.1f})"})
             reasoning_parts.append("Weekly RSI ({:.1f}) indicates oversold territory (potential value)".format(rsi_weekly))
             
         # Volatility Analysis (Stability preference)
         if annualized_volatility < 20:
             score += 10
+            scoring_log.append({"metric": "Volatility", "points": 10, "desc": f"Low Volatility ({annualized_volatility:.1f}%)"})
             reasoning_parts.append("Low volatility ({:.1f}%) suggests stability".format(annualized_volatility))
         elif annualized_volatility > 40:
             score -= 10
+            scoring_log.append({"metric": "Volatility", "points": -10, "desc": f"High Volatility ({annualized_volatility:.1f}%)"})
             reasoning_parts.append("High volatility ({:.1f}%) adds risk".format(annualized_volatility))
             
         # Performance context
@@ -114,6 +125,7 @@ def analyze_stock(symbol):
             "signal": signal,
             "confidence": confidence,
             "score": score,
+            "scoring_log": scoring_log,
             "reasoning": reasoning,
             "metrics": {
                 "current_price": round(current_price, 2),

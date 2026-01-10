@@ -33,6 +33,9 @@ def analyze_fundamentals(symbol):
         market_cap = info.get('marketCap')
         
         score = 50  # Start neutral
+        scoring_log = []
+        scoring_log.append({"metric": "Starting Base", "points": 50, "desc": "Neutral starting position"})
+        
         reasoning_parts = []
         metrics_found = {}
         
@@ -43,9 +46,11 @@ def analyze_fundamentals(symbol):
             metrics_found['ROE'] = "{:.1f}%".format(roe_pct)
             if roe_pct > 15:
                 score += 15
+                scoring_log.append({"metric": "Quality (ROE)", "points": 15, "desc": f"Strong ROE ({roe_pct:.1f}%)"})
                 reasoning_parts.append("High Quality: Strong ROE of {:.1f}% (>15%)".format(roe_pct))
             elif roe_pct < 8:
                 score -= 10
+                scoring_log.append({"metric": "Quality (ROE)", "points": -10, "desc": f"Weak ROE ({roe_pct:.1f}%)"})
                 reasoning_parts.append("Low Quality: Weak ROE of {:.1f}%".format(roe_pct))
             else:
                 reasoning_parts.append("Moderate ROE of {:.1f}%".format(roe_pct))
@@ -55,9 +60,11 @@ def analyze_fundamentals(symbol):
             metrics_found['Net Margin'] = "{:.1f}%".format(margin_pct)
             if margin_pct > 15:
                 score += 10
+                scoring_log.append({"metric": "Margins", "points": 10, "desc": f"High Net Margins ({margin_pct:.1f}%)"})
                 reasoning_parts.append("High net profit margins ({:.1f}%)".format(margin_pct))
             elif margin_pct < 5:
                 score -= 10
+                scoring_log.append({"metric": "Margins", "points": -10, "desc": f"Low Net Margins ({margin_pct:.1f}%)"})
                 reasoning_parts.append("Thin profit margins ({:.1f}%)".format(margin_pct))
 
         # --- SAFETY CHECK (Debt) ---
@@ -74,9 +81,11 @@ def analyze_fundamentals(symbol):
             
             if de_ratio < 0.5:
                 score += 10
+                scoring_log.append({"metric": "Safety (Debt)", "points": 10, "desc": f"Low Debt/Equity ({de_ratio:.2f})"})
                 reasoning_parts.append("Safety: Conservative debt levels (D/E: {:.2f})".format(de_ratio))
             elif de_ratio > 1.5:
                 score -= 15
+                scoring_log.append({"metric": "Safety (Debt)", "points": -15, "desc": f"High Debt/Equity ({de_ratio:.2f})"})
                 reasoning_parts.append("Risk: High leverage (D/E: {:.2f})".format(de_ratio))
             else:
                 reasoning_parts.append("Manageable debt (D/E: {:.2f})".format(de_ratio))
@@ -87,12 +96,15 @@ def analyze_fundamentals(symbol):
             metrics_found['P/E'] = round(pe_ratio, 2)
             if pe_ratio < 0:
                 score -= 20
+                scoring_log.append({"metric": "Value (P/E)", "points": -20, "desc": "Negative Earnings"})
                 reasoning_parts.append("Risk: Company is currently loss-making")
             elif pe_ratio < 15:
                 score += 10
+                scoring_log.append({"metric": "Value (P/E)", "points": 10, "desc": f"Attractive P/E ({pe_ratio:.1f})"})
                 reasoning_parts.append("Value: Attractive valuation (P/E {:.1f})".format(pe_ratio))
             elif pe_ratio > 50:
                 score -= 10
+                scoring_log.append({"metric": "Value (P/E)", "points": -10, "desc": f"Expensive P/E ({pe_ratio:.1f})"})
                 reasoning_parts.append("Expensive: High valuation premium (P/E {:.1f})".format(pe_ratio))
             else:
                 reasoning_parts.append("Fair valuation (P/E {:.1f})".format(pe_ratio))
@@ -104,9 +116,11 @@ def analyze_fundamentals(symbol):
             metrics_found['Rev Growth'] = "{:.1f}%".format(growth_pct)
             if growth_pct > 10:
                 score += 10
+                scoring_log.append({"metric": "Growth", "points": 10, "desc": f"Strong Revenue Growth ({growth_pct:.1f}%)"})
                 reasoning_parts.append("Growth: Strong revenue expansion ({:.1f}%)".format(growth_pct))
             elif growth_pct < 0:
                 score -= 10
+                scoring_log.append({"metric": "Growth", "points": -10, "desc": f"Negative Revenue Growth ({growth_pct:.1f}%)"})
                 reasoning_parts.append("concern: Shrinking revenue ({:.1f}%)".format(growth_pct))
 
         # --- Final Signal ---
@@ -126,6 +140,7 @@ def analyze_fundamentals(symbol):
             "signal": signal,
             "confidence": confidence,
             "score": score,
+            "scoring_log": scoring_log,
             "reasoning": reasoning,
             "metrics": metrics_found,
             "company_info": {
