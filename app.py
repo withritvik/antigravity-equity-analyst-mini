@@ -326,16 +326,31 @@ HTML_TEMPLATE = """
             <span id="nifty-change" class="index-change">--</span>
         </div>
         <div class="index-item">
+            <span class="index-name">SENSEX</span>
+            <span id="sensex-value" class="index-value">--</span>
+            <span id="sensex-change" class="index-change">--</span>
+        </div>
+        <div class="index-item">
+            <span class="index-name">DOJ JONES</span>
+            <span id="dow-value" class="index-value">--</span>
+            <span id="dow-change" class="index-change">--</span>
+        </div>
+        <div class="index-item">
             <span class="index-name">S&P 500</span>
             <span id="sp500-value" class="index-value">--</span>
             <span id="sp500-change" class="index-change">--</span>
         </div>
+        <div class="index-item">
+            <span class="index-name">SSE COMP</span>
+            <span id="sse-value" class="index-value">--</span>
+            <span id="sse-change" class="index-change">--</span>
+        </div>
     </div>
     
     <div class="main-layout">
-        <!-- Left Sidebar: NIFTY 50 -->
+        <!-- Left Sidebar: NIFTY 500 -->
         <div class="sidebar" style="border-right: 1px solid #333; border-left: none;">
-            <h4>NIFTY 50</h4>
+            <h4>NIFTY 500</h4>
             {% for ticker, name in nifty %}
             <div class="stock-item" onclick="analyzeStock('{{ ticker }}')">
                 <span style="font-weight:bold; color:#e0e0e0;">{{ ticker }}</span><br>
@@ -387,18 +402,18 @@ HTML_TEMPLATE = """
             fetch('/indices')
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
-                    if (data.nifty) {
-                        document.getElementById('nifty-value').textContent = data.nifty.value.toLocaleString();
-                        var niftyChange = document.getElementById('nifty-change');
-                        niftyChange.textContent = (data.nifty.change >= 0 ? '+' : '') + data.nifty.change.toFixed(2) + '%';
-                        niftyChange.className = 'index-change ' + (data.nifty.change >= 0 ? 'up' : 'down');
-                    }
-                    if (data.sp500) {
-                        document.getElementById('sp500-value').textContent = data.sp500.value.toLocaleString();
-                        var sp500Change = document.getElementById('sp500-change');
-                        sp500Change.textContent = (data.sp500.change >= 0 ? '+' : '') + data.sp500.change.toFixed(2) + '%';
-                        sp500Change.className = 'index-change ' + (data.sp500.change >= 0 ? 'up' : 'down');
-                    }
+                    var indices = ['nifty', 'sensex', 'dow', 'sp500', 'sse'];
+                    indices.forEach(function(idx) {
+                        if (data[idx]) {
+                            var valElem = document.getElementById(idx + '-value');
+                            var changeElem = document.getElementById(idx + '-change');
+                            if (valElem && changeElem) {
+                                valElem.textContent = data[idx].value.toLocaleString();
+                                changeElem.textContent = (data[idx].change >= 0 ? '+' : '') + data[idx].change.toFixed(2) + '%';
+                                changeElem.className = 'index-change ' + (data[idx].change >= 0 ? 'up' : 'down');
+                            }
+                        }
+                    });
                 })
                 .catch(function(e) { console.log('Index fetch error:', e); });
         }
@@ -541,33 +556,30 @@ def health():
 
 @app.route('/indices')
 def get_indices():
-    """Fetch real-time NIFTY50 and S&P500 index values"""
+    """Fetch real-time values for global indices"""
+    # Mapping: Key -> (YFinance Ticker, Display Name)
+    indices_map = {
+        'nifty': ('^NSEI', 'Nifty 50'),
+        'sensex': ('^BSESN', 'Sensex'),
+        'sp500': ('^GSPC', 'S&P 500'),
+        'dow': ('^DJI', 'Dow Jones'),
+        'sse': ('000001.SS', 'SSE Composite')
+    }
+    
     result = {}
     
-    try:
-        # NIFTY 50
-        nifty = yf.Ticker('^NSEI')
-        nifty_hist = nifty.history(period='2d')
-        if len(nifty_hist) >= 2:
-            current = nifty_hist['Close'].iloc[-1]
-            prev = nifty_hist['Close'].iloc[-2]
-            change = ((current - prev) / prev) * 100
-            result['nifty'] = {'value': round(current, 2), 'change': round(change, 2)}
-    except:
-        pass
-    
-    try:
-        # S&P 500
-        sp500 = yf.Ticker('^GSPC')
-        sp500_hist = sp500.history(period='2d')
-        if len(sp500_hist) >= 2:
-            current = sp500_hist['Close'].iloc[-1]
-            prev = sp500_hist['Close'].iloc[-2]
-            change = ((current - prev) / prev) * 100
-            result['sp500'] = {'value': round(current, 2), 'change': round(change, 2)}
-    except:
-        pass
-    
+    for key, (ticker, _) in indices_map.items():
+        try:
+            ticker_obj = yf.Ticker(ticker)
+            hist = ticker_obj.history(period='2d')
+            if len(hist) >= 2:
+                current = hist['Close'].iloc[-1]
+                prev = hist['Close'].iloc[-2]
+                change = ((current - prev) / prev) * 100
+                result[key] = {'value': round(current, 2), 'change': round(change, 2)}
+        except:
+            result[key] = {'value': 0, 'change': 0}
+            
     return jsonify(result)
 
 if __name__ == '__main__':
