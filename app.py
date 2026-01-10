@@ -4,11 +4,9 @@ Lightweight Python-only backend for constrained environments (512MB RAM, 0.1 CPU
 Uses separate agent files called via subprocess, same architecture as main Analyst.
 """
 
-from flask import Flask, render_template_string, request, jsonify
-import subprocess
-import json
-import os
-import yfinance as yf
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), 'agents'))
+from orchestration_agent import DebateSimulator
 
 app = Flask(__name__)
 
@@ -51,7 +49,7 @@ def run_agent(script_name, symbol):
         return {"success": False, "error": str(e)}
 
 def full_analysis(symbol):
-    """Run both agents and determine final signal"""
+    """Run agents and orchestrate debate"""
     # Run technical (valuation) agent
     tech = run_agent('valuation_agent.py', symbol)
     
@@ -65,16 +63,9 @@ def full_analysis(symbol):
                      " | Fund: " + fund.get('error', 'Unknown')
         }
     
-    # Calculate scores
-    tech_score = tech.get('score', 50) if tech.get('success') else 50
-    fund_score = fund.get('score', 50) if fund.get('success') else 50
-    avg_score = (tech_score + fund_score) / 2
-    
-    # Determine final signal
-    if tech.get('signal') == fund.get('signal'):
-        final_signal = tech.get('signal', 'SELL')
-    else:
-        final_signal = "BUY" if avg_score >= 60 else "SELL"
+    # Run Orchestration / Debate
+    simulator = DebateSimulator(fund, tech, symbol)
+    debate_result = simulator.run_debate()
     
     # Get company name
     company = fund.get('company_info', {}).get('name') or symbol
@@ -85,7 +76,9 @@ def full_analysis(symbol):
         "success": True,
         "symbol": symbol,
         "company": company,
-        "signal": final_signal,
+        "signal": debate_result['final_signal'],
+        "score": debate_result['final_score'],
+        "transcript": debate_result['transcript'],
         "technical": tech,
         "fundamental": fund
     }
@@ -114,7 +107,7 @@ HTML_TEMPLATE = """
         }
         .container {
             text-align: center;
-            max-width: 600px;
+            max-width: 800px;
             width: 100%;
         }
         h1 { 
@@ -217,6 +210,56 @@ HTML_TEMPLATE = """
             width: 100%;
         }
         body { padding-top: 60px; }
+        
+        /* Debate Styles */
+        .debate-container {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .dialogue-box {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 6px;
+            position: relative;
+        }
+        .speaker-fund {
+            background: #1a2a1a;
+            border-left: 4px solid #0f0;
+            margin-right: 20%;
+        }
+        .speaker-tech {
+            background: #2a1a1a;
+            border-left: 4px solid #f00;
+            margin-left: 20%;
+        }
+        .speaker-orch {
+            background: #1a1a2a;
+            border-left: 4px solid #00f;
+            text-align: center;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .speaker-name {
+            font-size: 0.8em;
+            color: #888;
+            margin-bottom: 4px;
+            display: block;
+            text-transform: uppercase;
+        }
+        .dialogue-text {
+            color: #e0e0e0;
+        }
+        .tone-tag {
+            font-size: 0.7em;
+            color: #666;
+            margin-left: 10px;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -297,35 +340,57 @@ HTML_TEMPLATE = """
                     if (data.success) {
                         var html = '<h3 style="text-align:center;">' + data.company + '</h3>';
                         html += '<p style="text-align:center;color:#888;">' + data.symbol + '</p>';
-                        html += '<p class="signal ' + data.signal.toLowerCase() + '">' + data.signal + '</p>';
+                        html += '<p class="signal ' + data.signal.toLowerCase() + '">' + data.signal + ' (' + data.score + '/100)</p>';
                         
-                        html += '<h4>Technical</h4>';
+                        // Debate Transcript
+                        html += '<h4>Analyst Debate (5 Rounds)</h4>';
+                        html += '<div class="debate-container">';
+                        
+                        data.transcript.forEach(function(entry) {
+                            var speakerClass = '';
+                            if (entry.speaker.includes('Fundamental')) speakerClass = 'speaker-fund';
+                            else if (entry.speaker.includes('Technical')) speakerClass = 'speaker-tech';
+                            else speakerClass = 'speaker-orch';
+                            
+                            html += '<div class="dialogue-box ' + speakerClass + '">';
+                            html += '<span class="speaker-name">' + entry.speaker;
+                            html += '<span class="tone-tag">(' + entry.tone + ')</span></span>';
+                            html += '<p class="dialogue-text">' + entry.message + '</p>';
+                            html += '</div>';
+                        });
+                        
+                        html += '</div>';
+                        
+                        // Data Tables
+                        html += '<div style="display:flex; gap:20px; flex-wrap:wrap;">';
+                        
+                        // Technical Table
+                        html += '<div style="flex:1; min-width:250px;">';
+                        html += '<h4>Technical Data</h4>';
                         if (data.technical.success) {
-                            html += '<p>Score: ' + data.technical.score + '/100</p>';
-                            html += '<p style="color:#888;">' + data.technical.reasoning + '</p>';
                             html += '<table>';
                             var techMetrics = data.technical.metrics || {};
                             for (var k in techMetrics) {
                                 html += '<tr><td>' + k + '</td><td>' + techMetrics[k] + '</td></tr>';
                             }
                             html += '</table>';
-                        } else {
-                            html += '<p class="error">' + data.technical.error + '</p>';
                         }
+                        html += '</div>';
                         
-                        html += '<h4>Fundamental</h4>';
+                        // Fundamental Table
+                        html += '<div style="flex:1; min-width:250px;">';
+                        html += '<h4>Fundamental Data</h4>';
                         if (data.fundamental.success) {
-                            html += '<p>Score: ' + data.fundamental.score + '/100</p>';
-                            html += '<p style="color:#888;">' + data.fundamental.reasoning + '</p>';
                             html += '<table>';
                             var fundMetrics = data.fundamental.metrics || {};
                             for (var k in fundMetrics) {
                                 html += '<tr><td>' + k + '</td><td>' + fundMetrics[k] + '</td></tr>';
                             }
                             html += '</table>';
-                        } else {
-                            html += '<p class="error">' + data.fundamental.error + '</p>';
                         }
+                        html += '</div>';
+                        
+                        html += '</div>'; // End data tables div
                         
                         document.getElementById('result').innerHTML = html;
                     } else {
