@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Mini Analyst - Minimal Stock Analysis App
 Lightweight Python-only backend for constrained environments (512MB RAM, 0.1 CPU)
@@ -62,6 +63,19 @@ def run_agent(script_name, symbol):
 
 def full_analysis(symbol):
     """Run agents and orchestrate debate"""
+    
+    # Fetch Extra Data (History for Chart)
+    history = []
+    try:
+        ticker = yf.Ticker(symbol)
+        # 1y history for chart
+        hist = ticker.history(period="1y")
+        if not hist.empty:
+            history = [{"date": d.strftime('%Y-%m-%d'), "price": round(p, 2)} 
+                      for d, p in zip(hist.index, hist['Close'])]
+    except Exception as e:
+        print(f"History fetch failed: {e}")
+
     # Run technical (valuation) agent
     tech = run_agent('valuation_agent.py', symbol)
     
@@ -92,7 +106,8 @@ def full_analysis(symbol):
         "score": debate_result['final_score'],
         "transcript": debate_result['transcript'],
         "technical": tech,
-        "fundamental": fund
+        "fundamental": fund,
+        "history": history
     }
 
 # ============== HTML Template ==============
@@ -103,19 +118,19 @@ HTML_TEMPLATE = """
 <head>
     <title>Mini Analyst</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { 
             font-family: monospace; 
             background: #000; 
             color: #fff; 
-            min-height: 100vh;
+            height: 100vh; /* Changed from min-height to fix layout */
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 30px;
+            /* Removed centering and padding to push to edges */
             font-size: 18px;
+            margin: 0;
         }
         .container {
             text-align: center;
@@ -233,6 +248,7 @@ HTML_TEMPLATE = """
             display: flex;
             height: calc(100vh - 60px); 
             overflow: hidden;
+            width: 100%; /* Explicitly set full width */
         }
         
         .sidebar {
@@ -321,6 +337,15 @@ HTML_TEMPLATE = """
             color: #e0e0e0;
         }
 
+        /* Chart Container */
+        .chart-container {
+            width: 100%;
+            height: 300px;
+            margin: 20px 0;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            padding: 10px;
+        }
     </style>
 </head>
 <body>
@@ -449,6 +474,9 @@ HTML_TEMPLATE = """
                         var currency = data.symbol.includes('.NS') ? '₹' : '$';
                         html += '<h2 style="text-align:center; color:#fff; margin: 10px 0;">' + currency + price + '</h2>';
                         
+                        // Chart Container
+                        html += '<div class="chart-container"><canvas id="stockChart"></canvas></div>';
+                        
                         html += '<p class="signal ' + data.signal.toLowerCase() + '">' + data.signal + ' (' + data.score + '/100)</p>';
                         
                         // Debate Transcript
@@ -535,6 +563,11 @@ HTML_TEMPLATE = """
                         html += '</div>'; // End scoring div
                         
                         document.getElementById('result').innerHTML = html;
+                        
+                        // Render Chart
+                        if (data.history && data.history.length > 0) {
+                            renderChart(data.history, data.symbol);
+                        }
                     } else {
                         document.getElementById('result').innerHTML = '<p class="error" style="text-align:center;">Error: ' + data.error + '</p>';
                     }
@@ -542,6 +575,68 @@ HTML_TEMPLATE = """
                 .catch(function(e) {
                     document.getElementById('result').innerHTML = '<p class="error" style="text-align:center;">Error: ' + e.message + '</p>';
                 });
+        }
+        
+        var myChart = null;
+        function renderChart(history, symbol) {
+            var ctx = document.getElementById('stockChart').getContext('2d');
+            if (myChart) myChart.destroy();
+            
+            var prices = history.map(h => h.price);
+            var dates = history.map(h => h.date);
+            // Green if up, Red if down
+            var color = prices[prices.length-1] >= prices[0] ? '#0f0' : '#f00';
+            
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: symbol + ' Price',
+                        data: prices,
+                        borderColor: color,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { 
+                            display: true,
+                            title: {
+                                display: false,
+                                text: 'Date',
+                                color: '#666'
+                            },
+                            ticks: {
+                                color: '#aaa',
+                                maxTicksLimit: 12,
+                                callback: function(val, index) {
+                                    var label = this.getLabelForValue(val);
+                                    var date = new Date(label);
+                                    var month = date.toLocaleDateString('en-US', { month: 'short' });
+                                    var year = date.getFullYear().toString().slice(-2);
+                                    return month + " '" + year;
+                                }
+                            }
+                        },
+                        y: { 
+                            display: true,
+                            grid: { color: '#333' },
+                            title: {
+                                display: true,
+                                text: 'Price (' + (symbol.includes('.NS') ? 'INR' : 'USD') + ')',
+                                color: '#666'
+                            }
+                        }
+                    }
+                }
+            });
         }
     </script>
 </body>
