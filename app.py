@@ -548,12 +548,37 @@ HTML_TEMPLATE = """
                         html += '<div style="flex:1; min-width:250px;">';
                         html += '<h4>Technical Data</h4>';
                         if (data.technical.success) {
-                            html += '<table>';
                             var techMetrics = data.technical.metrics || {};
-                            for (var k in techMetrics) {
-                                html += '<tr><td>' + k + '</td><td>' + techMetrics[k] + '</td></tr>';
+                            var techCategories = {
+                                'Price & Trend': {
+                                    'current_price': {v: techMetrics.current_price, tip: 'Current market price of the stock'},
+                                    'sma_200': {v: techMetrics.sma_200, tip: '200-day moving average - long-term trend indicator'},
+                                    'sma_50': {v: techMetrics.sma_50, tip: '50-day moving average - medium-term trend indicator'}
+                                },
+                                'Momentum': {
+                                    'rsi_weekly': {v: techMetrics.rsi_weekly, tip: 'Weekly RSI - overbought >70, oversold <30'},
+                                    'macd_signal': {v: techMetrics.macd_signal, tip: 'MACD momentum direction - Bullish or Bearish'}
+                                },
+                                'Risk & Volatility': {
+                                    'volatility_1y': {v: techMetrics.volatility_1y, tip: 'Annualized volatility - lower is more stable'},
+                                    'max_drawdown': {v: techMetrics.max_drawdown, tip: 'Worst peak-to-trough decline in 1 year'},
+                                    'return_1y': {v: techMetrics.return_1y, tip: '1-year total return percentage'}
+                                },
+                                'Volume': {
+                                    'volume_ratio': {v: techMetrics.volume_ratio, tip: 'Recent volume vs 50-day average - >1.5 is high interest'}
+                                }
+                            };
+                            for (var cat in techCategories) {
+                                html += '<h5 style="color:#666; margin:10px 0 5px; font-size:0.85em;">' + cat + '</h5>';
+                                html += '<table>';
+                                for (var k in techCategories[cat]) {
+                                    var item = techCategories[cat][k];
+                                    if (item.v !== undefined && item.v !== null) {
+                                        html += '<tr title="' + item.tip + '" style="cursor:help;"><td>' + k.replace(/_/g, ' ') + '</td><td>' + item.v + '</td></tr>';
+                                    }
+                                }
+                                html += '</table>';
                             }
-                            html += '</table>';
                         }
                         html += '</div>';
                         
@@ -561,12 +586,61 @@ HTML_TEMPLATE = """
                         html += '<div style="flex:1; min-width:250px;">';
                         html += '<h4>Fundamental Data</h4>';
                         if (data.fundamental.success) {
-                            html += '<table>';
                             var fundMetrics = data.fundamental.metrics || {};
-                            for (var k in fundMetrics) {
-                                html += '<tr><td>' + k + '</td><td>' + fundMetrics[k] + '</td></tr>';
+                            var fundCategories = {
+                                'Quality': {
+                                    'ROE': {v: fundMetrics['ROE'], tip: 'Return on Equity - measures profitability vs shareholder equity'},
+                                    'Net Margin': {v: fundMetrics['Net Margin'], tip: 'Net profit as % of revenue'}
+                                },
+                                'Valuation': {
+                                    'P/E': {v: fundMetrics['P/E'], tip: 'Price-to-Earnings ratio - lower may indicate value'},
+                                    'Target Price': {v: fundMetrics['Target Price'], tip: 'Average analyst price target'},
+                                    'Upside': {v: fundMetrics['Upside'], tip: 'Potential upside to analyst target price'}
+                                },
+                                'Safety': {
+                                    'D/E': {v: fundMetrics['D/E'], tip: 'Debt-to-Equity ratio - lower is safer'},
+                                    'Beta': {v: fundMetrics['Beta'], tip: 'Market sensitivity - <1 is less volatile than market'}
+                                },
+                                'Growth': {
+                                    'Rev Growth': {v: fundMetrics['Rev Growth'], tip: 'Year-over-year revenue growth'}
+                                },
+                                'Dividends': {
+                                    'Div Yield': {v: fundMetrics['Div Yield'], tip: 'Annual dividend as % of stock price'},
+                                    'Payout Ratio': {v: fundMetrics['Payout Ratio'], tip: '% of earnings paid as dividends - 20-60% is sustainable'}
+                                },
+                                'Analyst Ratings': {
+                                    'Strong Buy': {v: fundMetrics['Strong Buy'], tip: 'Number of analysts with Strong Buy rating'},
+                                    'Buy': {v: fundMetrics['Buy'], tip: 'Number of analysts with Buy rating'},
+                                    'Hold': {v: fundMetrics['Hold'], tip: 'Number of analysts with Hold rating'},
+                                    'Sell': {v: fundMetrics['Sell'], tip: 'Number of analysts with Sell rating'},
+                                    'Bullish %': {v: fundMetrics['Bullish %'], tip: 'Percentage of analysts that are bullish'}
+                                },
+                                'Insider Activity': {
+                                    'Insider Buys': {v: fundMetrics['Insider Buys'], tip: 'Recent insider purchase transactions'},
+                                    'Insider Sells': {v: fundMetrics['Insider Sells'], tip: 'Recent insider sale transactions'},
+                                    'Inst. Ownership': {v: fundMetrics['Inst. Ownership'], tip: '% of shares held by institutions'}
+                                },
+                                'Position': {
+                                    '52W Range': {v: fundMetrics['52W Range'], tip: 'Current price position within 52-week range'}
+                                }
+                            };
+                            for (var cat in fundCategories) {
+                                var hasData = false;
+                                for (var k in fundCategories[cat]) {
+                                    if (fundCategories[cat][k].v !== undefined && fundCategories[cat][k].v !== null) hasData = true;
+                                }
+                                if (hasData) {
+                                    html += '<h5 style="color:#666; margin:10px 0 5px; font-size:0.85em;">' + cat + '</h5>';
+                                    html += '<table>';
+                                    for (var k in fundCategories[cat]) {
+                                        var item = fundCategories[cat][k];
+                                        if (item.v !== undefined && item.v !== null) {
+                                            html += '<tr title="' + item.tip + '" style="cursor:help;"><td>' + k + '</td><td>' + item.v + '</td></tr>';
+                                        }
+                                    }
+                                    html += '</table>';
+                                }
                             }
-                            html += '</table>';
                         }
                         html += '</div>';
                         
