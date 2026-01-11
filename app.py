@@ -66,6 +66,7 @@ def full_analysis(symbol):
     
     # Fetch Extra Data (History for Chart)
     history = []
+    news = []
     try:
         ticker = yf.Ticker(symbol)
         # 1y history for chart
@@ -73,8 +74,19 @@ def full_analysis(symbol):
         if not hist.empty:
             history = [{"date": d.strftime('%Y-%m-%d'), "price": round(p, 2)} 
                       for d, p in zip(hist.index, hist['Close'])]
+        
+        # Fetch news (top 3) - yfinance uses nested 'content' structure
+        if ticker.news:
+            for n in ticker.news[:3]:
+                content = n.get('content', {})
+                news.append({
+                    "title": content.get('title', ''),
+                    "link": content.get('clickThroughUrl', {}).get('url', '#'),
+                    "publisher": content.get('provider', {}).get('displayName', ''),
+                    "time": content.get('pubDate', '')
+                })
     except Exception as e:
-        print(f"History fetch failed: {e}")
+        print(f"Extra data fetch failed: {e}")
 
     # Run technical (valuation) agent
     tech = run_agent('valuation_agent.py', symbol)
@@ -107,7 +119,8 @@ def full_analysis(symbol):
         "transcript": debate_result['transcript'],
         "technical": tech,
         "fundamental": fund,
-        "history": history
+        "history": history,
+        "news": news
     }
 
 # ============== HTML Template ==============
@@ -346,6 +359,22 @@ HTML_TEMPLATE = """
             border: 1px solid #333;
             padding: 10px;
         }
+        
+        /* News Items */
+        .news-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #0a0a0a;
+            border: 1px solid #333;
+        }
+        .news-item {
+            border-bottom: 1px solid #333;
+            padding: 10px 0;
+        }
+        .news-item:last-child { border-bottom: none; }
+        .news-item a { color: #0cf; text-decoration: none; font-size: 1em; }
+        .news-item a:hover { text-decoration: underline; }
+        .news-meta { color: #666; font-size: 0.8em; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -478,6 +507,21 @@ HTML_TEMPLATE = """
                         html += '<div class="chart-container"><canvas id="stockChart"></canvas></div>';
                         
                         html += '<p class="signal ' + data.signal.toLowerCase() + '">' + data.signal + ' (' + data.score + '/100)</p>';
+                        
+                        // News Section
+                        if (data.news && data.news.length > 0) {
+                            html += '<h4>Latest Headlines</h4>';
+                            html += '<div class="news-section">';
+                            data.news.forEach(function(n) {
+                                var date = n.time ? new Date(n.time) : new Date();
+                                var dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                html += '<div class="news-item">';
+                                html += '<a href="' + n.link + '" target="_blank">' + n.title + '</a>';
+                                html += '<div class="news-meta">' + n.publisher + ' • ' + dateStr + '</div>';
+                                html += '</div>';
+                            });
+                            html += '</div>';
+                        }
                         
                         // Debate Transcript
                         html += '<h4>Analyst Debate (5 Rounds)</h4>';
