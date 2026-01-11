@@ -103,7 +103,7 @@ class DebateSimulator:
 
         # --- Round 5: Closing & Vote ---
         
-        final_score = (self.fund_score * 0.6) + (self.tech_score * 0.4)
+        final_score = (self.fund_score * 0.5) + (self.tech_score * 0.5)
         decision = "HOLD"
         if final_score >= 65: decision = "BUY"
         elif final_score <= 35: decision = "SELL"

@@ -123,11 +123,169 @@ def analyze_fundamentals(symbol):
                 scoring_log.append({"metric": "Growth", "points": -10, "desc": f"Negative Revenue Growth ({growth_pct:.1f}%)"})
                 reasoning_parts.append("concern: Shrinking revenue ({:.1f}%)".format(growth_pct))
 
+        # --- DIVIDEND ANALYSIS (5 pts max, minimal weight) ---
+        dividend_yield = info.get('dividendYield')
+        payout_ratio = info.get('payoutRatio')
+        
+        if dividend_yield is not None and dividend_yield > 0:
+            div_pct = dividend_yield * 100
+            metrics_found['Div Yield'] = "{:.2f}%".format(div_pct)
+            if div_pct > 2:
+                score += 3
+                scoring_log.append({"metric": "Dividend", "points": 3, "desc": f"Good dividend yield ({div_pct:.2f}%)"})
+                reasoning_parts.append("Income: Pays {:.2f}% dividend".format(div_pct))
+        
+        if payout_ratio is not None and payout_ratio > 0:
+            payout_pct = payout_ratio * 100
+            metrics_found['Payout Ratio'] = "{:.0f}%".format(payout_pct)
+            if 20 < payout_pct < 60:
+                score += 2
+                scoring_log.append({"metric": "Dividend", "points": 2, "desc": f"Sustainable payout ({payout_pct:.0f}%)"})
+            elif payout_pct > 80:
+                score -= 2
+                scoring_log.append({"metric": "Dividend", "points": -2, "desc": f"Risky payout ratio ({payout_pct:.0f}%)"})
+                reasoning_parts.append("Risk: High dividend payout ratio ({:.0f}%)".format(payout_pct))
+
+        # --- INSIDER/INSTITUTIONAL ACTIVITY (15 pts max) ---
+        try:
+            insider_txns = stock.insider_transactions
+            if insider_txns is not None and not insider_txns.empty:
+                # Count buys vs sells in recent transactions
+                recent = insider_txns.head(10)
+                buys = recent[recent['Shares'].fillna(0) > 0].shape[0] if 'Shares' in recent.columns else 0
+                sells = recent[recent['Shares'].fillna(0) < 0].shape[0] if 'Shares' in recent.columns else 0
+                
+                metrics_found['Insider Buys'] = buys
+                metrics_found['Insider Sells'] = sells
+                
+                if buys > sells + 2:
+                    score += 10
+                    scoring_log.append({"metric": "Insider Activity", "points": 10, "desc": f"Net insider buying ({buys} buys)"})
+                    reasoning_parts.append("Bullish: Insiders are buying")
+                elif sells > buys + 2:
+                    score -= 5
+                    scoring_log.append({"metric": "Insider Activity", "points": -5, "desc": f"Net insider selling ({sells} sells)"})
+                    reasoning_parts.append("Caution: Insiders are selling")
+        except Exception:
+            pass  # Insider data not available for all stocks
+        
+        try:
+            inst_holders = stock.institutional_holders
+            if inst_holders is not None and not inst_holders.empty:
+                metrics_found['Institutional Holders'] = len(inst_holders)
+                inst_pct = info.get('heldPercentInstitutions')
+                if inst_pct:
+                    metrics_found['Inst. Ownership'] = "{:.1f}%".format(inst_pct * 100)
+                    if inst_pct > 0.6:
+                        score += 3
+                        scoring_log.append({"metric": "Institutional", "points": 3, "desc": f"High institutional ownership ({inst_pct*100:.1f}%)"})
+        except Exception:
+            pass
+
+        # --- ANALYST RATINGS (10 pts max) ---
+        try:
+            # Use yfinance recommendations_summary for detailed breakdown
+            rec_summary = stock.recommendations_summary
+            target_price = info.get('targetMeanPrice')
+            current_price = info.get('currentPrice') or info.get('regularMarketPrice')
+            
+            if rec_summary is not None and not rec_summary.empty:
+                # Get the most recent period's recommendations
+                latest = rec_summary.iloc[0] if len(rec_summary) > 0 else None
+                if latest is not None:
+                    strong_buy = int(latest.get('strongBuy', 0))
+                    buy = int(latest.get('buy', 0))
+                    hold = int(latest.get('hold', 0))
+                    sell = int(latest.get('sell', 0))
+                    strong_sell = int(latest.get('strongSell', 0))
+                    
+                    total = strong_buy + buy + hold + sell + strong_sell
+                    if total > 0:
+                        bullish_pct = ((strong_buy + buy) / total) * 100
+                        bearish_pct = ((sell + strong_sell) / total) * 100
+                        
+                        metrics_found['Strong Buy'] = strong_buy
+                        metrics_found['Buy'] = buy
+                        metrics_found['Hold'] = hold
+                        metrics_found['Sell'] = sell + strong_sell
+                        metrics_found['Bullish %'] = "{:.0f}%".format(bullish_pct)
+                        
+                        if bullish_pct >= 70:
+                            score += 10
+                            scoring_log.append({"metric": "Analyst Rating", "points": 10, "desc": f"{bullish_pct:.0f}% analysts bullish"})
+                            reasoning_parts.append("Strong analyst consensus: {:.0f}% bullish".format(bullish_pct))
+                        elif bullish_pct >= 50:
+                            score += 5
+                            scoring_log.append({"metric": "Analyst Rating", "points": 5, "desc": f"{bullish_pct:.0f}% analysts bullish"})
+                            reasoning_parts.append("Moderate analyst support: {:.0f}% bullish".format(bullish_pct))
+                        elif bearish_pct >= 50:
+                            score -= 8
+                            scoring_log.append({"metric": "Analyst Rating", "points": -8, "desc": f"{bearish_pct:.0f}% analysts bearish"})
+                            reasoning_parts.append("Analysts cautious: {:.0f}% bearish".format(bearish_pct))
+            
+            # Fallback to recommendationKey if summary not available
+            elif info.get('recommendationKey'):
+                recommendations = info.get('recommendationKey', '')
+                metrics_found['Analyst Rating'] = recommendations.replace('_', ' ').title()
+                if recommendations in ['strong_buy', 'buy']:
+                    score += 8
+                    scoring_log.append({"metric": "Analyst Rating", "points": 8, "desc": f"Analyst consensus: {recommendations}"})
+                    reasoning_parts.append("Analysts recommend {}".format(recommendations.replace('_', ' ')))
+                elif recommendations in ['sell', 'strong_sell']:
+                    score -= 8
+                    scoring_log.append({"metric": "Analyst Rating", "points": -8, "desc": f"Analyst consensus: {recommendations}"})
+                    reasoning_parts.append("Analysts recommend {}".format(recommendations.replace('_', ' ')))
+            
+            if target_price and current_price:
+                upside = ((target_price - current_price) / current_price) * 100
+                metrics_found['Target Price'] = "${:.2f}".format(target_price)
+                metrics_found['Upside'] = "{:.1f}%".format(upside)
+                if upside > 15:
+                    score += 3
+                    scoring_log.append({"metric": "Price Target", "points": 3, "desc": f"Target implies {upside:.1f}% upside"})
+                elif upside < -10:
+                    score -= 3
+                    scoring_log.append({"metric": "Price Target", "points": -3, "desc": f"Target implies {abs(upside):.1f}% downside"})
+        except Exception:
+            pass
+
+        # --- RISK METRICS (10 pts max) ---
+        beta = info.get('beta')
+        fifty_two_week_low = info.get('fiftyTwoWeekLow')
+        fifty_two_week_high = info.get('fiftyTwoWeekHigh')
+        current_price = info.get('currentPrice') or info.get('regularMarketPrice')
+        
+        if beta is not None:
+            metrics_found['Beta'] = round(beta, 2)
+            if beta < 0.8:
+                score += 5
+                scoring_log.append({"metric": "Risk (Beta)", "points": 5, "desc": f"Low volatility (Beta {beta:.2f})"})
+                reasoning_parts.append("Low risk: Beta of {:.2f}".format(beta))
+            elif beta > 1.5:
+                score -= 5
+                scoring_log.append({"metric": "Risk (Beta)", "points": -5, "desc": f"High volatility (Beta {beta:.2f})"})
+                reasoning_parts.append("Higher volatility (Beta {:.2f})".format(beta))
+        
+        if fifty_two_week_low and fifty_two_week_high and current_price:
+            range_position = (current_price - fifty_two_week_low) / (fifty_two_week_high - fifty_two_week_low) * 100
+            metrics_found['52W Range'] = "{:.0f}%".format(range_position)
+            
+            if range_position < 20:
+                score += 5
+                scoring_log.append({"metric": "52W Position", "points": 5, "desc": f"Near 52W low ({range_position:.0f}%)"})
+                reasoning_parts.append("Value opportunity: Near 52-week low")
+            elif range_position > 95:
+                score -= 3
+                scoring_log.append({"metric": "52W Position", "points": -3, "desc": f"Near 52W high ({range_position:.0f}%)"})
+
         # --- Final Signal ---
+        
+        # Normalize score to 0-100 range
+        score = min(100, max(0, score))
         
         # Long-term investing requires higher conviction
         signal = "BUY" if score >= 60 else "SELL"
-        confidence = min(100, max(0, int(score)))
+        confidence = score
         
         if not reasoning_parts:
             reasoning_parts.append("Insufficient data for fundamental analysis")

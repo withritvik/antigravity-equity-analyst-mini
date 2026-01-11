@@ -59,6 +59,33 @@ def analyze_stock(symbol):
         price_1y_ago = hist['Close'].iloc[-252] if len(hist) >= 252 else hist['Close'].iloc[0]
         return_1y = ((current_price - price_1y_ago) / price_1y_ago) * 100
         
+        # 6. Volume Analysis
+        avg_volume_50 = hist['Volume'].rolling(window=50).mean().iloc[-1]
+        recent_volume = hist['Volume'].iloc[-5:].mean()  # Last 5 days avg
+        volume_ratio = recent_volume / avg_volume_50 if avg_volume_50 > 0 else 1
+        
+        # Check if recent up-days have higher volume (accumulation)
+        recent_data = hist.tail(20)
+        up_days = recent_data[recent_data['Close'] > recent_data['Open']]
+        down_days = recent_data[recent_data['Close'] <= recent_data['Open']]
+        avg_up_volume = up_days['Volume'].mean() if len(up_days) > 0 else 0
+        avg_down_volume = down_days['Volume'].mean() if len(down_days) > 0 else 0
+        accumulation = avg_up_volume > avg_down_volume * 1.2  # 20% more volume on up days
+        
+        # 7. Max Drawdown (1 Year)
+        rolling_max = hist['Close'].rolling(window=252, min_periods=1).max()
+        drawdown = (hist['Close'] - rolling_max) / rolling_max * 100
+        max_drawdown = drawdown.min()  # Most negative value
+        
+        # 8. MACD (Moving Average Convergence Divergence)
+        ema_12 = hist['Close'].ewm(span=12, adjust=False).mean()
+        ema_26 = hist['Close'].ewm(span=26, adjust=False).mean()
+        macd_line = ema_12 - ema_26
+        signal_line = macd_line.ewm(span=9, adjust=False).mean()
+        macd_histogram = macd_line - signal_line
+        macd_current = macd_histogram.iloc[-1]
+        macd_bullish = macd_line.iloc[-1] > signal_line.iloc[-1]
+        
         # --- Scoring Logic (Long-Term Investor) ---
         score = 50 # Start Neutral
         scoring_log = []
@@ -109,12 +136,45 @@ def analyze_stock(symbol):
             reasoning_parts.append("Positive 1-year return of {:.1f}%".format(return_1y))
         else:
             reasoning_parts.append("Negative 1-year return of {:.1f}%".format(return_1y))
+        
+        # Volume Analysis
+        if volume_ratio > 1.5:
+            score += 5
+            scoring_log.append({"metric": "Volume", "points": 5, "desc": f"High recent volume ({volume_ratio:.1f}x avg)"})
+            reasoning_parts.append("Increased trading interest (volume {:.1f}x average)".format(volume_ratio))
+        if accumulation:
+            score += 5
+            scoring_log.append({"metric": "Accumulation", "points": 5, "desc": "Higher volume on up days"})
+            reasoning_parts.append("Signs of institutional accumulation")
+        
+        # Max Drawdown Analysis
+        if max_drawdown > -15:
+            score += 5
+            scoring_log.append({"metric": "Max Drawdown", "points": 5, "desc": f"Low drawdown ({max_drawdown:.1f}%)"})
+            reasoning_parts.append("Low max drawdown ({:.1f}%) shows resilience".format(max_drawdown))
+        elif max_drawdown < -40:
+            score -= 5
+            scoring_log.append({"metric": "Max Drawdown", "points": -5, "desc": f"High drawdown ({max_drawdown:.1f}%)"})
+            reasoning_parts.append("Significant drawdown ({:.1f}%) indicates risk".format(max_drawdown))
+        
+        # MACD Analysis
+        if macd_bullish:
+            score += 5
+            scoring_log.append({"metric": "MACD", "points": 5, "desc": "MACD above signal (Bullish)"})
+            reasoning_parts.append("MACD shows bullish momentum")
+        else:
+            score -= 3
+            scoring_log.append({"metric": "MACD", "points": -3, "desc": "MACD below signal (Bearish)"})
+            reasoning_parts.append("MACD shows weakening momentum")
 
         # --- Final Signal ---
         
+        # Normalize score to 0-100 range
+        score = min(100, max(0, score))
+        
         # Long-term investors look for trend confirmation + stability
-        signal = "BUY" if score >= 60 else "SELL" # Higher threshold for BUY
-        confidence = min(100, max(0, int(score)))
+        signal = "BUY" if score >= 60 else "SELL"
+        confidence = score
         
         # Formatting reasoning
         reasoning = ". ".join(reasoning_parts) + "."
@@ -133,7 +193,10 @@ def analyze_stock(symbol):
                 "sma_50": round(sma_50, 2),
                 "rsi_weekly": round(rsi_weekly, 2),
                 "volatility_1y": round(annualized_volatility, 2),
-                "return_1y": round(return_1y, 2)
+                "return_1y": round(return_1y, 2),
+                "volume_ratio": round(volume_ratio, 2),
+                "max_drawdown": round(max_drawdown, 2),
+                "macd_signal": "Bullish" if macd_bullish else "Bearish"
             }
         }
         
