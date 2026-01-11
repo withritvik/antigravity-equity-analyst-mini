@@ -85,6 +85,29 @@ def full_analysis(symbol):
                     "publisher": content.get('provider', {}).get('displayName', ''),
                     "time": content.get('pubDate', '')
                 })
+        
+        # Fetch earnings calendar
+        earnings = {}
+        try:
+            cal = ticker.calendar
+            if cal is not None:
+                if isinstance(cal, dict):
+                    earnings = {
+                        'earnings_date': str(cal.get('Earnings Date', ['N/A'])[0]) if cal.get('Earnings Date') else 'N/A',
+                        'earnings_avg': cal.get('Earnings Average'),
+                        'revenue_avg': cal.get('Revenue Average'),
+                        'ex_dividend_date': str(cal.get('Ex-Dividend Date', 'N/A'))
+                    }
+                elif hasattr(cal, 'T'):  # DataFrame
+                    cal_dict = cal.T.to_dict()
+                    if cal_dict:
+                        first_key = list(cal_dict.keys())[0]
+                        earnings = {
+                            'earnings_date': str(cal_dict[first_key].get('Earnings Date', 'N/A')),
+                            'ex_dividend_date': str(cal_dict[first_key].get('Ex-Dividend Date', 'N/A'))
+                        }
+        except Exception as e:
+            print(f"Earnings calendar fetch failed: {e}")
     except Exception as e:
         print(f"Extra data fetch failed: {e}")
 
@@ -120,7 +143,8 @@ def full_analysis(symbol):
         "technical": tech,
         "fundamental": fund,
         "history": history,
-        "news": news
+        "news": news,
+        "earnings": earnings
     }
 
 # ============== HTML Template ==============
@@ -428,7 +452,18 @@ HTML_TEMPLATE = """
                     <input type="text" id="ticker" placeholder="Enter ticker symbol">
                 </div>
                 
-                <button onclick="analyzeStock()">ANALYZE</button>
+                <!-- Second Ticker (shown only in compare mode) -->
+                <div id="ticker2-container" style="display: none; margin: 15px 0;">
+                    <input type="text" id="ticker2" placeholder="Second ticker to compare" style="width: 100%; padding: 18px; font-size: 1.5em; text-align: center; background: #111; border: 1px solid #444; color: #fff; font-family: monospace;">
+                </div>
+                
+                <button id="analyzeBtn" onclick="analyzeStock()">ANALYZE</button>
+                <button id="compareBtn" onclick="compareStocks()" style="display: none;">COMPARE</button>
+                
+                <!-- Mode Switcher -->
+                <p style="margin-top: 12px; font-size: 0.8em;">
+                    <span id="modeText" style="color: #666;">[ <a href="#" onclick="toggleCompareMode(); return false;" style="color: #0f0; text-decoration: none;">Switch to Compare Mode</a> ]</span>
+                </p>
                 
                 <p class="hint">
                     Enter ticker symbol (e.g., AAPL, MSFT)<br>
@@ -436,6 +471,7 @@ HTML_TEMPLATE = """
                 </p>
                 
                 <div id="result" class="result" style="display:none;"></div>
+                <div id="compare-result" class="result" style="display:none;"></div>
             </div>
             
             <div class="footer">
@@ -483,6 +519,112 @@ HTML_TEMPLATE = """
             if (e.key === 'Enter') analyzeStock();
         });
         
+        // Comparison Mode State
+        var compareMode = false;
+        
+        function toggleCompareMode() {
+            compareMode = !compareMode;
+            document.getElementById('ticker2-container').style.display = compareMode ? 'block' : 'none';
+            document.getElementById('analyzeBtn').style.display = compareMode ? 'none' : 'inline-block';
+            document.getElementById('compareBtn').style.display = compareMode ? 'inline-block' : 'none';
+            document.getElementById('modeText').innerHTML = compareMode ? 
+                '[ <a href="#" onclick="toggleCompareMode(); return false;" style="color: #0f0; text-decoration: none;">Switch to Single Mode</a> ]' :
+                '[ <a href="#" onclick="toggleCompareMode(); return false;" style="color: #0f0; text-decoration: none;">Switch to Compare Mode</a> ]';
+            document.getElementById('compare-result').style.display = 'none';
+            document.getElementById('compare-result').innerHTML = '';
+            document.getElementById('result').style.display = 'none';
+        }
+        
+        // Compare Two Stocks
+        function compareStocks() {
+            var ticker1 = document.getElementById('ticker').value.trim().toUpperCase();
+            var ticker2 = document.getElementById('ticker2').value.trim().toUpperCase();
+            if (!ticker1 || !ticker2) { alert('Please enter both ticker symbols'); return; }
+            
+            // Cross-market validation
+            var isIndian1 = ticker1.includes('.NS') || ticker1.includes('.BO');
+            var isIndian2 = ticker2.includes('.NS') || ticker2.includes('.BO');
+            if (isIndian1 !== isIndian2) {
+                document.getElementById('compare-result').style.display = 'block';
+                document.getElementById('compare-result').innerHTML = '<div style="text-align:center; padding:30px;"><p class="error" style="font-size:1.2em;">Cross-market comparison not supported</p><p style="color:#888; margin-top:10px;">Indian stocks (.NS/.BO) can only be compared with other Indian stocks.<br>US stocks can only be compared with other US stocks.</p></div>';
+                return;
+            }
+            
+            document.getElementById('compare-result').style.display = 'block';
+            document.getElementById('compare-result').innerHTML = '<p class="loading" style="text-align:center;">Comparing ' + ticker1 + ' vs ' + ticker2 + '...</p>';
+            document.getElementById('result').style.display = 'none';
+            
+            Promise.all([
+                fetch('/analyze?symbol=' + encodeURIComponent(ticker1)).then(function(r) { return r.json(); }),
+                fetch('/analyze?symbol=' + encodeURIComponent(ticker2)).then(function(r) { return r.json(); })
+            ]).then(function(results) {
+                var d1 = results[0];
+                var d2 = results[1];
+                
+                if (!d1.success || !d2.success) {
+                    document.getElementById('compare-result').innerHTML = '<p class="error">Error fetching data for one or both stocks.</p>';
+                    return;
+                }
+                
+                var html = '<div style="padding: 20px;">';
+                html += '<h3 style="text-align:center; margin:0 0 25px; color:#fff;">' + d1.symbol + ' vs ' + d2.symbol + '</h3>';
+                
+                // Score Comparison
+                html += '<div style="display:flex; justify-content:center; gap:50px; margin-bottom:25px;">';
+                var color1 = d1.score >= 60 ? '#0f0' : (d1.score <= 40 ? '#f00' : '#ff0');
+                var color2 = d2.score >= 60 ? '#0f0' : (d2.score <= 40 ? '#f00' : '#ff0');
+                html += '<div style="text-align:center;"><div style="font-size:2.5em; font-weight:bold; color:' + color1 + ';">' + d1.score + '</div><div style="color:#888; margin-top:5px;">' + d1.symbol + '</div><div class="signal ' + d1.signal.toLowerCase() + '" style="margin-top:8px; padding:5px 12px; font-size:0.85em;">' + d1.signal + '</div></div>';
+                html += '<div style="font-size:1.5em; color:#444; display:flex; align-items:center;">vs</div>';
+                html += '<div style="text-align:center;"><div style="font-size:2.5em; font-weight:bold; color:' + color2 + ';">' + d2.score + '</div><div style="color:#888; margin-top:5px;">' + d2.symbol + '</div><div class="signal ' + d2.signal.toLowerCase() + '" style="margin-top:8px; padding:5px 12px; font-size:0.85em;">' + d2.signal + '</div></div>';
+                html += '</div>';
+                
+                // Winner Declaration
+                if (d1.score !== d2.score) {
+                    var winner = d1.score > d2.score ? d1 : d2;
+                    var diff = Math.abs(d1.score - d2.score);
+                    html += '<div style="text-align:center; padding:12px; border:1px solid #333; margin-bottom:25px;">';
+                    html += '<span style="color:#0f0; font-weight:bold;">' + winner.symbol + '</span> leads by <span style="color:#fff;">' + diff + ' points</span>';
+                    html += '</div>';
+                }
+                
+                // Metrics Comparison Table
+                html += '<h4 style="color:#888; margin-bottom:12px; border-top:1px solid #333; padding-top:20px;">Key Metrics Comparison</h4>';
+                html += '<table style="width:100%; color:#ccc;">';
+                html += '<tr style="border-bottom:1px solid #333;"><th style="text-align:left; padding:10px 0;">Metric</th><th style="text-align:center;">' + d1.symbol + '</th><th style="text-align:center;">' + d2.symbol + '</th><th style="text-align:center;">Better</th></tr>';
+                
+                // Compare key metrics
+                var metrics = [
+                    {key: 'P/E', src: 'fundamental', lower: true},
+                    {key: 'ROE', src: 'fundamental', lower: false},
+                    {key: 'D/E', src: 'fundamental', lower: true},
+                    {key: 'Beta', src: 'fundamental', lower: true},
+                    {key: 'return_1y', src: 'technical', lower: false},
+                    {key: 'volatility_1y', src: 'technical', lower: true}
+                ];
+                
+                metrics.forEach(function(m) {
+                    var v1 = d1[m.src].metrics[m.key];
+                    var v2 = d2[m.src].metrics[m.key];
+                    if (v1 !== undefined && v2 !== undefined) {
+                        var val1 = parseFloat(String(v1).replace('%', ''));
+                        var val2 = parseFloat(String(v2).replace('%', ''));
+                        var better = '';
+                        if (!isNaN(val1) && !isNaN(val2)) {
+                            if (m.lower) better = val1 < val2 ? d1.symbol : (val2 < val1 ? d2.symbol : 'Tie');
+                            else better = val1 > val2 ? d1.symbol : (val2 > val1 ? d2.symbol : 'Tie');
+                        }
+                        var betterColor = better === d1.symbol ? '#0f0' : (better === d2.symbol ? '#0f0' : '#888');
+                        html += '<tr style="border-bottom:1px solid #222;"><td style="padding:10px 0;">' + m.key.replace(/_/g, ' ') + '</td><td style="text-align:center;">' + v1 + '</td><td style="text-align:center;">' + v2 + '</td><td style="text-align:center; color:' + betterColor + ';">' + better + '</td></tr>';
+                    }
+                });
+                
+                html += '</table></div>';
+                document.getElementById('compare-result').innerHTML = html;
+            }).catch(function(e) {
+                document.getElementById('compare-result').innerHTML = '<p class="error">Comparison failed: ' + e.message + '</p>';
+            });
+        }
+        
         function analyzeStock(symbol) {
             var ticker = symbol ? symbol : document.getElementById('ticker').value.trim().toUpperCase();
             if (symbol) document.getElementById('ticker').value = symbol; // Update input box
@@ -521,6 +663,26 @@ HTML_TEMPLATE = """
                                 html += '</div>';
                             });
                             html += '</div>';
+                        }
+                        
+                        // Earnings Calendar Section
+                        if (data.earnings && (data.earnings.earnings_date || data.earnings.ex_dividend_date)) {
+                            html += '<div class="earnings-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 8px; padding: 15px; margin: 20px 0; border: 1px solid #333;">';
+                            html += '<h4 style="margin: 0 0 12px 0; color: #fff; display: flex; align-items: center;">📅 Upcoming Events</h4>';
+                            html += '<div style="display: flex; gap: 20px; flex-wrap: wrap;">';
+                            if (data.earnings.earnings_date && data.earnings.earnings_date !== 'N/A' && data.earnings.earnings_date !== 'NaT') {
+                                html += '<div style="flex: 1; min-width: 150px;">';
+                                html += '<div style="color: #888; font-size: 0.8em;">Next Earnings</div>';
+                                html += '<div style="color: #4ecdc4; font-size: 1.1em; font-weight: bold;">' + data.earnings.earnings_date.split(' ')[0] + '</div>';
+                                html += '</div>';
+                            }
+                            if (data.earnings.ex_dividend_date && data.earnings.ex_dividend_date !== 'N/A' && data.earnings.ex_dividend_date !== 'NaT') {
+                                html += '<div style="flex: 1; min-width: 150px;">';
+                                html += '<div style="color: #888; font-size: 0.8em;">Ex-Dividend Date</div>';
+                                html += '<div style="color: #f39c12; font-size: 1.1em; font-weight: bold;">' + data.earnings.ex_dividend_date.split(' ')[0] + '</div>';
+                                html += '</div>';
+                            }
+                            html += '</div></div>';
                         }
                         
                         // Debate Transcript
